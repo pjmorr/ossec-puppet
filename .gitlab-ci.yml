@@ -1,0 +1,33 @@
+image: ruby:2.2
+
+before_script:
+  - export PUPPET_GEM_VERSION=4.3.2
+  - gem install bundler-audit
+  - gem install bundler --pre
+  - gem install jwt
+  - bundle install
+
+stages:
+  - test
+  - deploy
+
+rspec:
+  stage: test
+  script:
+    - "bundle exec rake spec"
+  tags:
+    - puppet
+
+bundleraudit:
+  stage: test
+  script:
+    - "bundle-audit check --update"
+  tags:
+    - puppet
+
+trigger:
+  stage: deploy
+  script:
+    - "curl -X POST -F token=TOKEN -F ref=REF_NAME https://gitlab.dev.uberops.net/api/v3/projects/1/trigger/builds"
+  tags:
+    - puppet
