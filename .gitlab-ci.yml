@@ -16,6 +16,9 @@ before_script:
   - source .env
   - export DEBIAN_FRONTEND=noninteractive
   - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - apt-get update
+  - apt-get -qq install git build-essential libssl-dev python python-pip ca-certificates
+  - pip install awscli
   - ruby -v
 
 after_script:
