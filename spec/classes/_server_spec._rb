@@ -9,7 +9,7 @@ describe 'ossec::server' do
       end
       context 'with defaults for all parameters' do
         it do
-          expect { is_expected.to compile.with_all_deps }.to raise_error(/expects a value for/)
+          expect { is_expected.to compile.with_all_deps }.to raise_error(/Must pass mailserver_ip/)
         end
       end
 
@@ -20,8 +20,8 @@ describe 'ossec::server' do
             ossec_emailto: "root@localhost.com",
           }
         end
-        # it { is_expected.to compile.with_all_deps }
-        # it { should contain_class('Ossec::Server') }
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_class('Ossec::Server') }
       end
     end
   end
