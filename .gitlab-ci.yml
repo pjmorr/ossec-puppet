@@ -15,7 +15,6 @@ before_script:
   - cp .env-example .env
   - source .env
   - export DEBIAN_FRONTEND=noninteractive
-  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
   - apk update
   - apk add --update alpine-sdk
   - ruby -v
