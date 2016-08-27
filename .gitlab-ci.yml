@@ -38,8 +38,7 @@ dev_spec_puppet:
   stage: spec
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundler update
-    - bundle install -j `nproc` --path vendor
+    - bundle install --path vendor
     - bundle exec rake compute_dev_version
     - bundle exec rake clean
     - bundle exec rake spec_clean
