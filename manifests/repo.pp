@@ -58,7 +58,7 @@ class ossec::repo (
           priority => 1,
           protect  => false,
         }
-      } elsif $operatingsystemrelease =~ /^5.*/ {
+      } elsif $::operatingsystemrelease =~ /^5.*/ {
         # Set up OSSEC repo
         yumrepo { 'ossec':
           descr    => 'WAZUH OSSEC Repository - www.wazuh.com',

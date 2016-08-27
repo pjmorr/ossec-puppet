@@ -101,7 +101,7 @@ class ossec::client(
       notify  => Service[$ossec::params::agent_service]
     }
   }
-  
+
   concat::fragment { 'ossec.conf_99' :
     target  => $ossec::params::config_file,
     content => template('ossec/99_ossec_agent.conf.erb'),
