@@ -41,13 +41,11 @@ dev_spec_puppet:
     - bundle install -j $(nproc) --path vendor
     - bundle exec rake compute_dev_version
     - bundle exec rake clean
-    - bundle exec rake clean_fixtures
     - bundle exec rake spec_clean
     - bundle exec rake spec_prep
   tags:
     - ruby
     - puppet
-  environment: development
 
 dev_rubocop:
   only:
@@ -65,7 +63,6 @@ dev_rubocop:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_dot_underscore:
   only:
@@ -83,7 +80,6 @@ dev_dot_underscore:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_git_ignore:
   only:
@@ -101,7 +97,6 @@ dev_git_ignore:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_test_file:
   only:
@@ -119,7 +114,6 @@ dev_test_file:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_symlinks:
   only:
@@ -137,7 +131,6 @@ dev_symlinks:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_release_checks:
   only:
@@ -154,7 +147,6 @@ dev_release_checks:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_audit:
   only:
@@ -176,7 +168,6 @@ dev_audit:
   tags:
   - ruby
   - puppet
-  environment: development
 
 dev_build_puppet_module:
   only:
@@ -214,13 +205,9 @@ release_checks:
     - bundle install -j $(nproc) --path vendor
     - bundle exec rake spec_prep
     - bundle exec rake release_checks
-  artifacts:
-    paths:
-    - pkg/
   tags:
     - ruby
     - puppet
-  environment: production
 
 dot_underscore:
   only:
@@ -236,7 +223,6 @@ dot_underscore:
   tags:
     - ruby
     - puppet
-  environment: production
 
 git_ignore:
   only:
@@ -252,7 +238,6 @@ git_ignore:
   tags:
     - ruby
     - puppet
-  environment: production
 
 test_file:
   only:
@@ -268,7 +253,6 @@ test_file:
   tags:
     - ruby
     - puppet
-  environment: production
 
 check_symlinks:
   only:
@@ -283,7 +267,6 @@ check_symlinks:
   tags:
     - ruby
     - puppet
-  environment: production
 
 audit:
   only:
@@ -302,7 +285,6 @@ audit:
   tags:
     - ruby
     - puppet
-  environment: production
 
 puppet_module:
   only:
