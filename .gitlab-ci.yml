@@ -1,4 +1,4 @@
-image: ruby:2.3-alpine
+image: ruby:2.3.1
 
 services:
 
@@ -6,17 +6,15 @@ variables:
   GIT_STRATEGY: clone
 
 cache:
-  key: "$CI_BUILD_REF_NAME"
-  untracked: true
+  key: "$CI_PROJECT_PATH"
   paths:
-    - vendor/ruby
+    - vendor
 
 before_script:
   - cp .env-example .env
   - source .env
   - export DEBIAN_FRONTEND=noninteractive
-  - apk update
-  - apk add --update alpine-sdk
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true  
   - ruby -v
 
 after_script:
@@ -38,9 +36,10 @@ dev_spec_puppet:
   stage: spec
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
+    - bundle install -j $(nproc) --path vendor
     - bundle exec rake compute_dev_version
     - bundle exec rake clean
+    - bundle exec rake clean_fixtures
     - bundle exec rake spec_clean
     - bundle exec rake spec_prep
   tags:
@@ -55,7 +54,7 @@ dev_rubocop:
   stage: check
   script:
   - gem install bundler --no-ri --no-rdoc
-  - bundle install --path vendor
+  - bundle install -j $(nproc) --path vendor
   - bundle exec rake compute_dev_version
   - bundle exec rake rubocop
   dependencies:
@@ -64,7 +63,7 @@ dev_rubocop:
   - ruby
   - puppet
 
-dev_dot_underscore:
+dev_checks:
   only:
   - branches
   except:
@@ -72,59 +71,11 @@ dev_dot_underscore:
   stage: check
   script:
   - gem install bundler --no-ri --no-rdoc
-  - bundle install --path vendor
+  - bundle install -j $(nproc) --path vendor
   - bundle exec rake compute_dev_version
   - bundle exec rake check:dot_underscore
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_git_ignore:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler --no-ri --no-rdoc
-  - bundle install --path vendor
-  - bundle exec rake compute_dev_version
   - bundle exec rake check:git_ignore
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_test_file:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler --no-ri --no-rdoc
-  - bundle install --path vendor
-  - bundle exec rake compute_dev_version
   - bundle exec rake check:test_file
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_symlinks:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler --no-ri --no-rdoc
-  - bundle install --path vendor
-  - bundle exec rake compute_dev_version
   - bundle exec rake check:symlinks
   dependencies:
   - dev_spec_puppet
@@ -140,7 +91,7 @@ dev_release_checks:
   stage: check
   script:
   - gem install bundler  --no-ri --no-rdoc
-  - bundle install --path vendor
+  - bundle install -j $(nproc) --path vendor
   - bundle exec rake release_checks
   dependencies:
   - dev_spec_puppet
@@ -156,14 +107,11 @@ dev_audit:
   stage: audit
   script:
   - gem install bundler  --no-ri --no-rdoc
-  - bundle install --path vendor
+  - bundle install -j $(nproc) --path vendor
   - 'bundle exec rake bundle:audit'
   dependencies:
   - dev_rubocop
-  - dev_dot_underscore
-  - dev_git_ignore
-  - dev_test_file
-  - dev_symlinks
+  - dev_checks
   - dev_release_checks
   tags:
   - ruby
@@ -181,7 +129,7 @@ dev_build_puppet_module:
   - pip install awscli
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
+    - bundle install -j $(nproc) --path vendor
     - bundle exec rake build
     - aws s3 sync pkg/ s3://$S3_BUCKET
   dependencies:
@@ -202,65 +150,24 @@ release_checks:
   stage: spec
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
+    - bundle install -j $(nproc) --path vendor
     - bundle exec rake spec_prep
     - bundle exec rake release_checks
   tags:
     - ruby
     - puppet
 
-dot_underscore:
+checks:
   only:
     - master
   stage: check
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
+    - bundle install -j $(nproc) --path vendor
     - bundle exec rake spec_prep
     - 'bundle exec rake check:dot_underscore'
-  dependencies:
-  - release_checks
-  tags:
-    - ruby
-    - puppet
-
-git_ignore:
-  only:
-    - master
-  stage: check
-  script:
-    - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
-    - bundle exec rake spec_prep
     - 'bundle exec rake check:git_ignore'
-  dependencies:
-  - release_checks
-  tags:
-    - ruby
-    - puppet
-
-test_file:
-  only:
-    - master
-  stage: check
-  script:
-    - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
-    - bundle exec rake spec_prep
     - 'bundle exec rake check:test_file'
-  dependencies:
-  - release_checks
-  tags:
-    - ruby
-    - puppet
-
-check_symlinks:
-  only:
-    - master
-  stage: check
-  script:
-    - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
     - 'bundle exec rake check:symlinks'
   dependencies:
   - release_checks
@@ -274,14 +181,11 @@ audit:
   stage: audit
   script:
     - gem install bundler  --no-ri --no-rdoc
-    - bundle install --path vendor
+    - bundle install -j $(nproc) --path vendor
     - bundle exec rake spec_prep
     - 'bundle exec rake bundle:audit'
   dependencies:
-  - dot_underscore
-  - git_ignore
-  - test_file
-  - check_symlinks
+  - checks
   tags:
     - ruby
     - puppet
@@ -291,12 +195,12 @@ puppet_module:
     - master
   stage: deploy
   before_script:
-  - apk update
-  - apk add --update alpine-sdk
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
   script:
   - gem install bundler  --no-ri --no-rdoc
-  - bundle install --path vendor
+  - bundle install -j $(nproc) --path vendor
   - bundle exec rake build
   - aws s3 sync pkg/ s3://$S3_BUCKET
   dependencies:

@@ -1,6 +1,9 @@
 fixtures:
   forge_modules:
     stdlib: puppetlabs/stdlib
+    apt: puppetlabs/apt
+    selinux: jfryman/selinux
+    mysql: puppetlabs/mysql
     concat: puppetlabs/concat
     epel: stahnma/epel
   symlinks:
