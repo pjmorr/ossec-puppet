@@ -2,3 +2,7 @@
 pkg/
 spec/fixures/
 .gemfile.lock
+.bundle/
+vendor/
+Gemfile.lock
+.env
