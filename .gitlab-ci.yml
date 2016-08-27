@@ -17,8 +17,7 @@ before_script:
   - export DEBIAN_FRONTEND=noninteractive
   - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
   - apk update
-  - apk add git build-essential libssl-dev python python-pip ca-certificates
-  - pip install awscli
+  - apk add --update alpine-sdk
   - ruby -v
 
 after_script:
