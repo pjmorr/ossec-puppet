@@ -1,13 +1,13 @@
 {
-  "name": "wazuh-ossec",
-  "version": "2.0.14",
-  "author": "WAZUH",
+  "name": "uberops-ossec",
+  "version": "2.0.15",
+  "author": "uberops",
   "summary": "Install and configure OSSEC-HIDS client and server",
   "license": "Apache-2.0",
-  "source": "https://github.com/wazuh/ossec-puppet",
-  "project_page": "https://github.com/wazuh/ossec-puppet",
-  "issues_url": "https://github.com/wazuh/ossec-puppet/issues",
-  "tags": ["ossec", "hids", "2.8.3"],
+  "source": "git@gitlab.ubermonitoring.com:puppet/ossec-puppet.git",
+  "project_page": "https://gitlab.ubermonitoring.com/puppet/ossec-puppet",
+  "issues_url": "https://gitlab.ubermonitoring.com/puppet/ossec-puppet/issues",
+  "tags": ["ossec", "hids", "WAZUH", "2.8.3"],
   "operatingsystem_support": [
     {
       "operatingsystem": "Windows",
