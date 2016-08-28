@@ -28,11 +28,7 @@ stages:
   - pages
   - cleanup
 
-dev_spec_puppet:
-  only:
-    - branches
-  except:
-    - master
+spec_puppet:
   stage: spec
   script:
     - gem install bundler  --no-ri --no-rdoc
@@ -46,107 +42,7 @@ dev_spec_puppet:
     - ruby
     - puppet
 
-dev_rubocop:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler --no-ri --no-rdoc
-  - bundle install -j $(nproc) --path vendor
-  - bundle exec rake compute_dev_version
-  - bundle exec rake rubocop
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_checks:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler --no-ri --no-rdoc
-  - bundle install -j $(nproc) --path vendor
-  - bundle exec rake compute_dev_version
-  - bundle exec rake check:dot_underscore
-  - bundle exec rake check:git_ignore
-  - bundle exec rake check:test_file
-  - bundle exec rake check:symlinks
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_release_checks:
-  only:
-  - branches
-  except:
-  - master
-  stage: check
-  script:
-  - gem install bundler  --no-ri --no-rdoc
-  - bundle install -j $(nproc) --path vendor
-  - bundle exec rake release_checks
-  dependencies:
-  - dev_spec_puppet
-  tags:
-  - ruby
-  - puppet
-
-dev_audit:
-  only:
-  - branches
-  except:
-  - master
-  stage: audit
-  script:
-  - gem install bundler  --no-ri --no-rdoc
-  - bundle install -j $(nproc) --path vendor
-  - 'bundle exec rake bundle:audit'
-  dependencies:
-  - dev_rubocop
-  - dev_checks
-  - dev_release_checks
-  tags:
-  - ruby
-  - puppet
-
-dev_build_puppet_module:
-  only:
-    - branches
-  except:
-    - master
-  stage: deploy
-  before_script:
-  - apt-get update
-  - apt-get -qq install python python-pip ca-certificates
-  - pip install awscli
-  script:
-    - gem install bundler  --no-ri --no-rdoc
-    - bundle install -j $(nproc) --path vendor
-    - bundle exec rake build
-    - aws s3 sync pkg/ s3://$S3_BUCKET
-  dependencies:
-  - dev_audit
-  artifacts:
-    paths:
-    - pkg/
-  tags:
-    - ruby
-    - puppet
-  environment: development
-
-# MASTER branch goes to production and triggers puppet pull
-# MASTER Tests
 release_checks:
-  only:
-    - master
   stage: spec
   script:
     - gem install bundler  --no-ri --no-rdoc
@@ -157,9 +53,21 @@ release_checks:
     - ruby
     - puppet
 
+rubocop:
+  stage: check
+  script:
+  - gem install bundler --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake compute_dev_version
+  - bundle exec rake rubocop
+  dependencies:
+  - spec_puppet
+  - release_checks
+  tags:
+  - ruby
+  - puppet
+
 checks:
-  only:
-    - master
   stage: check
   script:
     - gem install bundler  --no-ri --no-rdoc
@@ -170,14 +78,13 @@ checks:
     - 'bundle exec rake check:test_file'
     - 'bundle exec rake check:symlinks'
   dependencies:
+  - spec_puppet
   - release_checks
   tags:
     - ruby
     - puppet
 
 audit:
-  only:
-    - master
   stage: audit
   script:
     - gem install bundler  --no-ri --no-rdoc
@@ -186,11 +93,12 @@ audit:
     - 'bundle exec rake bundle:audit'
   dependencies:
   - checks
+  - rubocop
   tags:
     - ruby
     - puppet
 
-puppet_module:
+master:
   only:
     - master
   stage: deploy
@@ -202,7 +110,30 @@ puppet_module:
   - gem install bundler  --no-ri --no-rdoc
   - bundle install -j $(nproc) --path vendor
   - bundle exec rake build
-  - aws s3 sync pkg/ s3://$S3_BUCKET
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/master
+  dependencies:
+  - audit
+  artifacts:
+    paths:
+    - pkg/
+  tags:
+    - ruby
+    - puppet
+  environment: master
+
+production:
+  only:
+    - production
+  stage: deploy
+  before_script:
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
+  - pip install awscli
+  script:
+  - gem install bundler  --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake build
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/production
   dependencies:
   - audit
   artifacts:
@@ -212,3 +143,77 @@ puppet_module:
     - ruby
     - puppet
   environment: production
+
+development:
+  only:
+    - development
+  stage: deploy
+  before_script:
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
+  - pip install awscli
+  script:
+  - gem install bundler  --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake build
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/dvelopment
+  dependencies:
+  - audit
+  artifacts:
+    paths:
+    - pkg/
+  tags:
+    - ruby
+    - puppet
+  environment: development
+
+test:
+  only:
+    - test
+  stage: deploy
+  before_script:
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
+  - pip install awscli
+  script:
+  - gem install bundler  --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake build
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/test
+  dependencies:
+  - audit
+  artifacts:
+    paths:
+    - pkg/
+  tags:
+    - ruby
+    - puppet
+  environment: test
+
+beta:
+  only:
+    - branches
+  except:
+    - master
+    - development
+    - production
+    - test
+  stage: deploy
+  before_script:
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
+  - pip install awscli
+  script:
+  - gem install bundler  --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake build
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/beta
+  dependencies:
+  - audit
+  artifacts:
+    paths:
+    - pkg/
+  tags:
+    - ruby
+    - puppet
+  environment: beta
