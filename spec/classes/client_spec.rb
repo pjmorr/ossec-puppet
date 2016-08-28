@@ -1,9 +1,11 @@
+# encoding: utf-8
+# frozen_string_literal: true
 require 'spec_helper'
 describe 'ossec::client' do
   on_supported_os.each do |os, facts|
     context "on #{os}" do
       let (:facts) do
-        facts.merge({ :concat_basedir => '/dummy' })
+        facts.merge(concat_basedir: '/dummy')
       end
       context 'with defaults for all parameters' do
         it do
@@ -14,7 +16,7 @@ describe 'ossec::client' do
       context 'with ossec_server_ip' do
         let (:params) do
           {
-            :ossec_server_ip => '127.0.0.1',
+            ossec_server_ip: '127.0.0.1'
           }
         end
         it { is_expected.to compile.with_all_deps }
@@ -26,7 +28,7 @@ describe 'ossec::client' do
       context 'with ossec_server_hostname' do
         let (:params) do
           {
-            :ossec_server_hostname => 'local.test',
+            ossec_server_hostname: 'local.test'
           }
         end
         it { is_expected.to compile.with_all_deps }

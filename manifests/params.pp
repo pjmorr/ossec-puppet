@@ -75,6 +75,7 @@ class ossec::params {
           }
 
         }
+        default: { fail('This ossec module has not been tested on your distribution') }
       }
     }
     'windows': {
