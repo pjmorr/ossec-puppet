@@ -164,7 +164,7 @@ checks:
   script:
     - gem install bundler  --no-ri --no-rdoc
     - bundle install -j $(nproc) --path vendor
-    - bundle exec rake spec_prep
+    - bundle exec rake spec_clean
     - 'bundle exec rake check:dot_underscore'
     - 'bundle exec rake check:git_ignore'
     - 'bundle exec rake check:test_file'
