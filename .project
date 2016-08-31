@@ -3,6 +3,12 @@
 	<name>ossec</name>
 	<comment></comment>
 	<projects>
+		<project>apt</project>
+		<project>concat</project>
+		<project>epel</project>
+		<project>mysql</project>
+		<project>selinux</project>
+		<project>stdlib</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
