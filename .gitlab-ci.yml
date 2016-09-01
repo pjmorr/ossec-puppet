@@ -14,7 +14,7 @@ before_script:
   - cp .env-example .env
   - source .env
   - export DEBIAN_FRONTEND=noninteractive
-  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true  
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
   - ruby -v
 
 after_script:
@@ -39,8 +39,9 @@ spec_puppet:
     - bundle exec rake spec_clean
     - bundle exec rake spec_prep
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
 
 release_checks:
   stage: spec
@@ -50,8 +51,9 @@ release_checks:
     - bundle exec rake spec_prep
     - bundle exec rake release_checks
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
 
 rubocop:
   stage: check
@@ -64,8 +66,9 @@ rubocop:
   - spec_puppet
   - release_checks
   tags:
-  - ruby
+  - UBEROPS
   - puppet
+  - aws
 
 checks:
   stage: check
@@ -81,8 +84,9 @@ checks:
   - spec_puppet
   - release_checks
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
 
 audit:
   stage: audit
@@ -95,14 +99,20 @@ audit:
   - checks
   - rubocop
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
 
 master:
   only:
     - master
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -117,8 +127,9 @@ master:
     paths:
     - pkg/
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
   environment: master
 
 production:
@@ -126,6 +137,11 @@ production:
     - production
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -140,8 +156,9 @@ production:
     paths:
     - pkg/
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
   environment: production
 
 development:
@@ -149,6 +166,11 @@ development:
     - development
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -163,8 +185,9 @@ development:
     paths:
     - pkg/
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
   environment: development
 
 test:
@@ -172,6 +195,11 @@ test:
     - test
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -186,9 +214,44 @@ test:
     paths:
     - pkg/
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
   environment: test
+
+stable:
+  only:
+    - 2-0-stable
+  except:
+    - master
+    - development
+    - production
+    - test
+  stage: deploy
+  before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
+  - apt-get update
+  - apt-get -qq install python python-pip ca-certificates
+  - pip install awscli
+  script:
+  - gem install bundler  --no-ri --no-rdoc
+  - bundle install -j $(nproc) --path vendor
+  - bundle exec rake build
+  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/stable
+  dependencies:
+  - audit
+  artifacts:
+    paths:
+    - pkg/
+  tags:
+  - UBEROPS
+  - puppet
+  - aws
+  environment: stable
 
 beta:
   only:
@@ -200,6 +263,11 @@ beta:
     - test
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -207,13 +275,13 @@ beta:
   - gem install bundler  --no-ri --no-rdoc
   - bundle install -j $(nproc) --path vendor
   - bundle exec rake build
-  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/beta
   dependencies:
   - audit
   artifacts:
     paths:
     - pkg/
   tags:
-    - ruby
-    - puppet
+  - UBEROPS
+  - puppet
+  - aws
   environment: beta

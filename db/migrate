@@ -1,0 +1,1407 @@
+diff --git a/.env-example b/.env-example
+index f7cd3b4..0fa0a59 100644
+--- a/.env-example
++++ b/.env-example
+@@ -1,8 +1,20 @@
+-GITLAB_API_ENDPOINT="https://gitlab.ubermonitoring.com/api/v3"
++GITLAB_API_ENDPOINT=$GITLAB_API_ENDPOINT
+ GITLAB_API_PRIVATE_TOKEN=$GITLAB_API_PRIVATE_TOKEN
+ PUPPET_AGENT_VERSION=$PUPPET_AGENT_VERSION
+ AWS_ACCESS_KEY_ID=$UBEROPS_AWS_ACCESS_KEY_ID
+ AWS_SECRET_ACCESS_KEY=$UBEROPS_AWS_SECRET_ACCESS_KEY
+ REGION=$REGION
++S3_BUCKET=$S3_BUCKET
++HIPCHAT_ROOM_ID=$HIPCHAT_ROOM_ID
++HIPCHAT_API=$HIPCHAT_API
++HIPCHAT_NOTIFY=$HIPCHAT_NOTIFY
++HIPCHAT_FORMAT=$HIPCHAT_FORMAT
++HIPCHAT_COLOR=$HIPCHAT_COLOR
++HIPCHAT_FROM=$HIPCHAT_FROM
++HIPCHAT_HOST=$HIPCHAT_HOST
++HIPCHAT_TOKEN=$HIPCHAT_TOKEN
++TOKEN=$TOKEN
++CONTRL_REPO=$CONTRL_REPO
++GITLAB_SERVER=$GITLAB_SERVER
+ OUTPUT=$OUTPUT
+ HIPCHAT_INPUT_MESSAGE="CI pipeline finished stage: <b>$CI_BUILD_STAGE</b><br>BuildName:<b>$CI_BUILD_NAME</b><br>BuildRefName: <b>$CI_BUILD_REF_NAME</b><br>Commit \`$(git log -1 --oneline)\`<br>See https://gitlab.ubermonitoring.com/puppet/$(basename "$PWD")/commit/"$CI_BUILD_REF"/builds"
+diff --git a/.gitignore b/.gitignore
+index 7d23cad..217a224 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,4 +5,4 @@ spec/fixures/
+ .bundle/
+ vendor/
+ Gemfile.lock
+-.env
++.env
+\ No newline at end of file
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index f87bf3c..d712015 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -28,11 +28,7 @@ stages:
+   - pages
+   - cleanup
+ 
+-dev_spec_puppet:
+-  only:
+-    - branches
+-  except:
+-    - master
++spec_puppet:
+   stage: spec
+   script:
+     - gem install bundler  --no-ri --no-rdoc
+@@ -46,81 +42,64 @@ dev_spec_puppet:
+     - ruby
+     - puppet
+ 
+-dev_rubocop:
+-  only:
+-  - branches
+-  except:
+-  - master
+-  stage: check
++release_checks:
++  stage: spec
+   script:
+-  - gem install bundler --no-ri --no-rdoc
+-  - bundle install -j $(nproc) --path vendor
+-  - bundle exec rake compute_dev_version
+-  - bundle exec rake rubocop
+-  dependencies:
+-  - dev_spec_puppet
++    - gem install bundler  --no-ri --no-rdoc
++    - bundle install -j $(nproc) --path vendor
++    - bundle exec rake spec_prep
++    - bundle exec rake release_checks
+   tags:
+-  - ruby
+-  - puppet
++    - ruby
++    - puppet
+ 
+-dev_checks:
+-  only:
+-  - branches
+-  except:
+-  - master
++rubocop:
+   stage: check
+   script:
+   - gem install bundler --no-ri --no-rdoc
+   - bundle install -j $(nproc) --path vendor
+   - bundle exec rake compute_dev_version
+-  - bundle exec rake check:dot_underscore
+-  - bundle exec rake check:git_ignore
+-  - bundle exec rake check:test_file
+-  - bundle exec rake check:symlinks
++  - bundle exec rake rubocop
+   dependencies:
+-  - dev_spec_puppet
++  - spec_puppet
++  - release_checks
+   tags:
+   - ruby
+   - puppet
+ 
+-dev_release_checks:
+-  only:
+-  - branches
+-  except:
+-  - master
++checks:
+   stage: check
+   script:
+-  - gem install bundler  --no-ri --no-rdoc
+-  - bundle install -j $(nproc) --path vendor
+-  - bundle exec rake release_checks
++    - gem install bundler  --no-ri --no-rdoc
++    - bundle install -j $(nproc) --path vendor
++    - bundle exec rake spec_clean
++    - 'bundle exec rake check:dot_underscore'
++    - 'bundle exec rake check:git_ignore'
++    - 'bundle exec rake check:test_file'
++    - 'bundle exec rake check:symlinks'
+   dependencies:
+-  - dev_spec_puppet
++  - spec_puppet
++  - release_checks
+   tags:
+-  - ruby
+-  - puppet
++    - ruby
++    - puppet
+ 
+-dev_audit:
+-  only:
+-  - branches
+-  except:
+-  - master
++audit:
+   stage: audit
+   script:
+-  - gem install bundler  --no-ri --no-rdoc
+-  - bundle install -j $(nproc) --path vendor
+-  - 'bundle exec rake bundle:audit'
++    - gem install bundler  --no-ri --no-rdoc
++    - bundle install -j $(nproc) --path vendor
++    - bundle exec rake spec_prep
++    - 'bundle exec rake bundle:audit'
+   dependencies:
+-  - dev_rubocop
+-  - dev_checks
+-  - dev_release_checks
++  - checks
++  - rubocop
+   tags:
+-  - ruby
+-  - puppet
++    - ruby
++    - puppet
+ 
+-dev_build_puppet_module:
++master:
+   only:
+-    - branches
+-  except:
+     - master
+   stage: deploy
+   before_script:
+@@ -128,71 +107,97 @@ dev_build_puppet_module:
+   - apt-get -qq install python python-pip ca-certificates
+   - pip install awscli
+   script:
+-    - gem install bundler  --no-ri --no-rdoc
+-    - bundle install -j $(nproc) --path vendor
+-    - bundle exec rake build
+-    - aws s3 sync pkg/ s3://$S3_BUCKET
++  - gem install bundler  --no-ri --no-rdoc
++  - bundle install -j $(nproc) --path vendor
++  - bundle exec rake build
++  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/master
+   dependencies:
+-  - dev_audit
++  - audit
+   artifacts:
+     paths:
+     - pkg/
+   tags:
+     - ruby
+     - puppet
+-  environment: development
++  environment: master
+ 
+-# MASTER branch goes to production and triggers puppet pull
+-# MASTER Tests
+-release_checks:
++production:
+   only:
+-    - master
+-  stage: spec
++    - production
++  stage: deploy
++  before_script:
++  - apt-get update
++  - apt-get -qq install python python-pip ca-certificates
++  - pip install awscli
+   script:
+-    - gem install bundler  --no-ri --no-rdoc
+-    - bundle install -j $(nproc) --path vendor
+-    - bundle exec rake spec_prep
+-    - bundle exec rake release_checks
++  - gem install bundler  --no-ri --no-rdoc
++  - bundle install -j $(nproc) --path vendor
++  - bundle exec rake build
++  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/production
++  dependencies:
++  - audit
++  artifacts:
++    paths:
++    - pkg/
+   tags:
+     - ruby
+     - puppet
++  environment: production
+ 
+-checks:
++development:
+   only:
+-    - master
+-  stage: check
++    - development
++  stage: deploy
++  before_script:
++  - apt-get update
++  - apt-get -qq install python python-pip ca-certificates
++  - pip install awscli
+   script:
+-    - gem install bundler  --no-ri --no-rdoc
+-    - bundle install -j $(nproc) --path vendor
+-    - bundle exec rake spec_clean
+-    - 'bundle exec rake check:dot_underscore'
+-    - 'bundle exec rake check:git_ignore'
+-    - 'bundle exec rake check:test_file'
+-    - 'bundle exec rake check:symlinks'
++  - gem install bundler  --no-ri --no-rdoc
++  - bundle install -j $(nproc) --path vendor
++  - bundle exec rake build
++  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/dvelopment
+   dependencies:
+-  - release_checks
++  - audit
++  artifacts:
++    paths:
++    - pkg/
+   tags:
+     - ruby
+     - puppet
++  environment: development
+ 
+-audit:
++test:
+   only:
+-    - master
+-  stage: audit
++    - test
++  stage: deploy
++  before_script:
++  - apt-get update
++  - apt-get -qq install python python-pip ca-certificates
++  - pip install awscli
+   script:
+-    - gem install bundler  --no-ri --no-rdoc
+-    - bundle install -j $(nproc) --path vendor
+-    - bundle exec rake spec_prep
+-    - 'bundle exec rake bundle:audit'
++  - gem install bundler  --no-ri --no-rdoc
++  - bundle install -j $(nproc) --path vendor
++  - bundle exec rake build
++  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/test
+   dependencies:
+-  - checks
++  - audit
++  artifacts:
++    paths:
++    - pkg/
+   tags:
+     - ruby
+     - puppet
++  environment: test
+ 
+-puppet_module:
++beta:
+   only:
++    - branches
++  except:
+     - master
++    - development
++    - production
++    - test
+   stage: deploy
+   before_script:
+   - apt-get update
+@@ -202,7 +207,7 @@ puppet_module:
+   - gem install bundler  --no-ri --no-rdoc
+   - bundle install -j $(nproc) --path vendor
+   - bundle exec rake build
+-  - aws s3 sync pkg/ s3://$S3_BUCKET
++  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/beta
+   dependencies:
+   - audit
+   artifacts:
+@@ -211,4 +216,4 @@ puppet_module:
+   tags:
+     - ruby
+     - puppet
+-  environment: production
++  environment: beta
+\ No newline at end of file
+diff --git a/.project b/.project
+index 0a83503..896759b 100644
+--- a/.project
++++ b/.project
+@@ -3,6 +3,12 @@
+ 	<name>ossec</name>
+ 	<comment></comment>
+ 	<projects>
++		<project>apt</project>
++		<project>concat</project>
++		<project>epel</project>
++		<project>mysql</project>
++		<project>selinux</project>
++		<project>stdlib</project>
+ 	</projects>
+ 	<buildSpec>
+ 		<buildCommand>
+diff --git a/.rubocop_todo.yml b/.rubocop_todo.yml
+index 519b67c..444d9c5 100644
+--- a/.rubocop_todo.yml
++++ b/.rubocop_todo.yml
+@@ -1,6 +1,6 @@
+ # This configuration was generated by
+ # `rubocop --auto-gen-config`
+-# on 2016-08-27 16:47:39 -0500 using RuboCop version 0.42.0.
++# on 2016-08-31 22:01:50 -0500 using RuboCop version 0.42.0.
+ # The point is for the user to remove these configuration records
+ # one by one as the offenses are removed from the code base.
+ # Note that changes in the inspected code, or installation of new
+@@ -11,13 +11,40 @@ Lint/HandleExceptions:
+   Exclude:
+     - 'spec/spec_helper.rb'
+ 
+-# Offense count: 6
++# Offense count: 3
+ Lint/ParenthesesAsGroupedExpression:
+   Exclude:
+     - 'spec/classes/client_spec.rb'
+-    - 'spec/classes/init_spec.rb'
+     - 'spec/classes/server_spec.rb'
+ 
++# Offense count: 4
++Lint/Void:
++  Exclude:
++    - 'spec/defines/agentkey_spec.rb'
++
++# Offense count: 2
++Metrics/AbcSize:
++  Max: 42
++
++# Offense count: 11
++# Configuration parameters: AllowHeredoc, AllowURI, URISchemes.
++# URISchemes: http, https
++Metrics/LineLength:
++  Max: 186
++
++# Offense count: 2
++# Configuration parameters: CountComments.
++Metrics/MethodLength:
++  Max: 44
++
++# Offense count: 2
++# Configuration parameters: EnforcedStyle, SupportedStyles.
++# SupportedStyles: nested, compact
++Style/ClassAndModuleChildren:
++  Exclude:
++    - 'spec/testing/rspec_puppet/shared_examples.rb'
++    - 'spec/testing/rspec_puppet/shared_facts.rb'
++
+ # Offense count: 2
+ # Configuration parameters: AllowedVariables.
+ Style/GlobalVars:
+@@ -25,13 +52,12 @@ Style/GlobalVars:
+     - 'spec/spec_helper.rb'
+     - 'spec/spec_helper_puppet.rb'
+ 
+-# Offense count: 5
++# Offense count: 6
+ # Cop supports --auto-correct.
+ # Configuration parameters: EnforcedStyle, SupportedStyles, AllowInnerSlashes.
+ # SupportedStyles: slashes, percent_r, mixed
+ Style/RegexpLiteral:
+   Exclude:
+-    - 'Rakefile'
+     - 'spec/classes/client_spec.rb'
+ 
+ # Offense count: 2
+diff --git a/.ruby-version b/.ruby-version
+new file mode 100644
+index 0000000..1e187c9
+--- /dev/null
++++ b/.ruby-version
+@@ -0,0 +1 @@
++ruby-2.2.5
+diff --git a/CHANGELOG b/CHANGELOG
+index a868e60..cf59129 100644
+--- a/CHANGELOG
++++ b/CHANGELOG
+@@ -215,3 +215,15 @@ Jose Luis Ruiz <jose@wazuh.com>:
+ 
+   * Add option to enable syslog output. (pull request #35 thanks @TravellingGUy )
+   * Add Add Amazon Linux support. (pull request #37 thanks @seefood)
++
++  2016-08-31 Philip Morrison  - 2.0.16
++  ===========================================================
++
++  * Add additional spec tests (93% code coverage)
++    * Add .gitlab-ci.yml for GitLab-CI processing
++    * Add rubocop checks
++    * Add bundle:audit (CVE checking our code is good)
++    * Add .ruby-version for rvn users to pin 2.2.5 required by Gemfile
++    * Add logo to repo for automatic branding love.
++    * Updated .fixtures.yml
++  * Minor tweaks to manifest files (header info to make linter happy)
+diff --git a/CODE_OF_CONDUCT.md b/CODE_OF_CONDUCT.md
+index eff523f..7bde6d2 100644
+--- a/CODE_OF_CONDUCT.md
++++ b/CODE_OF_CONDUCT.md
+@@ -1,50 +1,27 @@
+ # Contributor Code of Conduct
+ 
+-As contributors and maintainers of this project, and in the interest of
+-fostering an open and welcoming community, we pledge to respect all people who
+-contribute through reporting issues, posting feature requests, updating
+-documentation, submitting pull requests or patches, and other activities.
++As contributors and maintainers of this project, and in the interest of fostering an open and welcoming community, we pledge to respect all people who contribute through reporting issues, posting feature requests, updating documentation, submitting pull requests or patches, and other activities.
+ 
+-We are committed to making participation in this project a harassment-free
+-experience for everyone, regardless of level of experience, gender, gender
+-identity and expression, sexual orientation, disability, personal appearance,
+-body size, race, ethnicity, age, religion, or nationality.
++We are committed to making participation in this project a harassment-free experience for everyone, regardless of level of experience, gender, gender identity and expression, sexual orientation, disability, personal appearance, body size, race, ethnicity, age, religion, or nationality.
+ 
+ Examples of unacceptable behavior by participants include:
+ 
+-* The use of sexualized language or imagery
+-* Personal attacks
+-* Trolling or insulting/derogatory comments
+-* Public or private harassment
+-* Publishing other's private information, such as physical or electronic
+-  addresses, without explicit permission
+-* Other unethical or unprofessional conduct
+-
+-Project maintainers have the right and responsibility to remove, edit, or
+-reject comments, commits, code, wiki edits, issues, and other contributions
+-that are not aligned to this Code of Conduct, or to ban temporarily or
+-permanently any contributor for other behaviors that they deem inappropriate,
+-threatening, offensive, or harmful.
+-
+-By adopting this Code of Conduct, project maintainers commit themselves to
+-fairly and consistently applying these principles to every aspect of managing
+-this project. Project maintainers who do not follow or enforce the Code of
+-Conduct may be permanently removed from the project team.
+-
+-This Code of Conduct applies both within project spaces and in public spaces
+-when an individual is representing the project or its community.
+-
+-Instances of abusive, harassing, or otherwise unacceptable behavior may be
+-reported by contacting a project maintainer at opensource@coi.gov.pl. All
+-complaints will be reviewed and investigated and will result in a response that
+-is deemed necessary and appropriate to the circumstances. Maintainers are
+-obligated to maintain confidentiality with regard to the reporter of an
+-incident.
+-
+-
+-This Code of Conduct is adapted from the [Contributor Covenant][homepage],
+-version 1.3.0, available at
+-[http://contributor-covenant.org/version/1/3/0/][version]
++- The use of sexualized language or imagery
++- Personal attacks
++- Trolling or insulting/derogatory comments
++- Public or private harassment
++- Publishing other's private information, such as physical or electronic addresses, without explicit permission
++- Other unethical or unprofessional conduct
++
++Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that they deem inappropriate, threatening, offensive, or harmful.
++
++By adopting this Code of Conduct, project maintainers commit themselves to fairly and consistently applying these principles to every aspect of managing this project. Project maintainers who do not follow or enforce the Code of Conduct may be permanently removed from the project team.
++
++This Code of Conduct applies both within project spaces and in public spaces when an individual is representing the project or its community.
++
++Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting a project maintainer at support@ubermonitoring.com. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances. Maintainers are obligated to maintain confidentiality with regard to the reporter of an incident.
++
++This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.3.0, available at [http://contributor-covenant.org/version/1/3/0/][version]
+ 
+ [homepage]: http://contributor-covenant.org
+ [version]: http://contributor-covenant.org/version/1/3/0/
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 901c5cd..6ff56da 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -1,94 +1,87 @@
+-This module has grown over time based on a range of contributions from
+-people using it. If you follow these contributing guidelines your patch
+-will likely make it into a release a little quicker.
++This module is based on Wazuh's awesome collaborative work. Due to the nature<br>
++of this product, contributions are scrutinized and tested before placed into<br>
++production. If you follow these contributing guidelines your patch will likely<br>
++make it into a release a little quicker.
+ 
+-
+-## Contributing
++# Contributing
+ 
+ 1. Fork the repo.
+ 
+ 2. Create your feature branch (`git checkout -b feature/my-new-feature`)
+ 
+-3. Run the tests. We only take pull requests with passing tests, and
+-   it's great to know that you have a clean slate
++3. Run the tests. We only take pull requests with passing tests, and it's great to know that you have a clean slate
+ 
+-4. Add a test for your change. Only refactoring and documentation
+-   changes require no new tests. If you are adding functionality
+-   or fixing a bug, please add a test.
++4. Add a test for your change. Only refactoring and documentation changes require no new tests. If you are adding functionality or fixing a bug, please add a test.
+ 
+ 5. Make the test pass.
+ 
+ 6. Push to your fork and submit a pull request.
+ 
++# Dependencies
+ 
+-## Dependencies
+-
+-The testing and development tools have a bunch of dependencies,
+-all managed by [bundler](http://bundler.io/) according to the
+-[Puppet support matrix](http://docs.puppetlabs.com/guides/platforms.html#ruby-versions).
++The testing and development tools have a bunch of dependencies, all managed by [bundler](http://bundler.io/) according to the [Puppet support matrix](http://docs.puppetlabs.com/guides/platforms.html#ruby-versions).
+ 
+ By default the tests use a baseline version of Puppet.
+ 
+-If you have Ruby 2.x or want a specific version of Puppet,
+-you must set an environment variable such as:
++If you have Ruby 2.x or want a specific version of Puppet, you must set an environment variable such as:
+ 
+-    export PUPPET_VERSION="~> 3.2.0"
++```
++export PUPPET_VERSION="~> 3.2.0"
++```
+ 
+ Install the dependencies like so... (you can also pass `--path /fs/path/for/deps` to fetch dependencies to other directory)
+ 
+-    bundle install
++```
++bundle install
++```
+ 
+ If you want to use Ruby 1.8 that we still support you have to pass `--gemfile gemfiles/Gemfile18.facter17` to download correct versions of gems that we use.
+ 
+-## Syntax and style
++# Syntax and style
+ 
+-The test suite will run [Puppet Lint](http://puppet-lint.com/) and
+-[Puppet Syntax](https://github.com/gds-operations/puppet-syntax) to
+-check various syntax and style things. You can run these locally with:
++The test suite will run [Puppet Lint](http://puppet-lint.com/) and [Puppet Syntax](https://github.com/gds-operations/puppet-syntax) to check various syntax and style things. You can run these locally with:
+ 
+-    bundle exec rake lint
+-    bundle exec rake syntax
++```
++bundle exec rake lint
++bundle exec rake syntax
++```
+ 
+-## Running the unit tests
++# Running the unit tests
+ 
+-The unit test suite covers most of the code, as mentioned above please
+-add tests if you're adding new functionality. If you've not used
+-[rspec-puppet](http://rspec-puppet.com/) before then feel free to ask
+-about how best to test your new feature. Running the test suite is done
+-with:
++The unit test suite covers most of the code, as mentioned above please add tests if you're adding new functionality. If you've not used [rspec-puppet](http://rspec-puppet.com/) before then feel free to ask about how best to test your new feature. Running the test suite is done with:
+ 
+-    bundle exec rake spec
++```
++bundle exec rake spec
++```
+ 
+ Note also you can run the syntax, style and unit tests in one go with:
+ 
+-    bundle exec rake test
++```
++bundle exec rake test
++```
+ 
+-## Automatically run the Integration tests
++# Automatically run the Integration tests
+ 
+ During development of your puppet module you might want to run your unit tests a couple of times. You can use the following command to automate running the unit tests on every change made in the manifests folder.
+ 
+-  bundle exec guard
++bundle exec guard
+ 
+-## Integration tests
++# Integration tests
+ 
+-The unit tests just check the code runs, not that it does exactly what
+-we want on a real machine. For that we're using
+-[beaker](https://github.com/puppetlabs/beaker).
++The unit tests just check the code runs, not that it does exactly what we want on a real machine. For that we're using [beaker](https://github.com/puppetlabs/beaker).
+ 
+-This fires up a new virtual machine (using vagrant) and runs a series of
+-simple tests against it after applying the module. You can run this
+-with:
++This fires up a new virtual machine (using vagrant) and runs a series of simple tests against it after applying the module. You can run this with:
+ 
+-    bundle exec rake acceptance
++```
++bundle exec rake acceptance
++```
+ 
+-This will run the tests on an Centos 6.5 docker container. You can also
+-run the integration tests against any other configuration specified in directory `spec/acceptance/nodesets`. For example for Ubuntu 14.04 running on virtualbox via Vagrant you should run:
++This will run the tests on an Centos 6.5 docker container. You can also run the integration tests against any other configuration specified in directory `spec/acceptance/nodesets`. For example for Ubuntu 14.04 running on virtualbox via Vagrant you should run:
+ 
+-    RS_SET=ubuntu-14.04-x86_64-vagrant bundle exec rake acceptance
++```
++RS_SET=ubuntu-14.04-x86_64-vagrant bundle exec rake acceptance
++```
+ 
+-**Caution!** To run Vagrant boxes when you have installed Vagrant in version 1.5 or above, you need to have `bundler` in version range: >= 1.5.2 <= 1.10.5. This is due to fact of invalid version in vagrant-wrapper gem package.
++**Caution!** To run Vagrant boxes when you have installed Vagrant in version 1.5 or above, you need to have `bundler` in version range: >= 1.5.2 <= 1.10.5\. This is due to fact of invalid version in vagrant-wrapper gem package.
+ 
+-If you don't want to have to recreate the virtual machine every time you
+-can use `BEAKER_DESTROY=no` and `BEAKER_PROVISION=no`. On the first run you will
+-at least need `BEAKER_PROVISION` set to yes (the default). The Vagrantfile
+-for the created virtual machines will be in `.vagrant/beaker_vagrant_files`.
++If you don't want to have to recreate the virtual machine every time you can use `BEAKER_DESTROY=no` and `BEAKER_PROVISION=no`. On the first run you will at least need `BEAKER_PROVISION` set to yes (the default). The Vagrantfile for the created virtual machines will be in `.vagrant/beaker_vagrant_files`.
+diff --git a/README.md b/README.md
+index 57e7a2d..c045a0f 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,4 @@
+-# OSSEC Puppet module
++# Wazuh flavored OSSEC Puppet module
+ 
+ [![build status](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/badges/master/build.svg)](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/commits/master)<br>
+ [![coverage report](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/badges/master/coverage.svg)](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/commits/master)
+@@ -15,7 +15,7 @@ This module installs and configure OSSEC HIDS agent and manager.
+ 
+ This Puppet module has been authored by Nicolas Zin, and updated by Jonathan Gazeley and Michael Porter. Wazuh has forked it with the purpose of maintaining it. Thank you to the authors for the contribution.
+ 
+-Additional modifications for UberMonitoring have been made in order to integrate with existing CI & security processes.
++_Additional modifications for UberMonitoring have been made in order to integrate with existing CI & security processes._
+ 
+ ## References
+ 
+diff --git a/VERSION b/VERSION
+deleted file mode 100644
+index 3d45b5c..0000000
+--- a/VERSION
++++ /dev/null
+@@ -1 +0,0 @@
+-2.0.14
+diff --git a/coverage/.resultset.json b/coverage/.resultset.json
+index 1b45410..40d10d0 100644
+--- a/coverage/.resultset.json
++++ b/coverage/.resultset.json
+@@ -2,6 +2,6 @@
+   "RSpec": {
+     "coverage": {
+     },
+-    "timestamp": 1472339381
++    "timestamp": 1472689138
+   }
+ }
+diff --git a/coverage/index.html b/coverage/index.html
+index 1b87f23..24ec60a 100644
+--- a/coverage/index.html
++++ b/coverage/index.html
+@@ -1,7 +1,7 @@
+ <!DOCTYPE html>
+ <html xmlns='http://www.w3.org/1999/xhtml'>
+   <head>
+-    <title>Code coverage for Ossec-puppet</title>
++    <title>Code coverage for Ossec</title>
+     <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+     <script src='./assets/0.10.0/application.js' type='text/javascript'></script>    
+     <link href='./assets/0.10.0/application.css' media='screen, projection, print' rel='stylesheet' type='text/css'>
+@@ -14,7 +14,7 @@
+       <img src="./assets/0.10.0/loading.gif" alt="loading"/>
+     </div>
+     <div id="wrapper" style="display:none;">
+-      <div class="timestamp">Generated <abbr class="timeago" title="2016-08-27T18:09:41-05:00">2016-08-27T18:09:41-05:00</abbr></div>
++      <div class="timestamp">Generated <abbr class="timeago" title="2016-08-31T19:18:58-05:00">2016-08-31T19:18:58-05:00</abbr></div>
+       <ul class="group_tabs"></ul>
+ 
+       <div id="content">
+diff --git a/manifests/activeresponse.pp b/manifests/activeresponse.pp
+index 676179b..e26a43e 100644
+--- a/manifests/activeresponse.pp
++++ b/manifests/activeresponse.pp
+@@ -1,4 +1,7 @@
+-#Define for a specific ossec active-response
++# Define: ossec:active-response
++#
++# Define for a specific ossec active-response
++#
+ define ossec::activeresponse(
+   $command_name,
+   $ar_location           = 'local',
+@@ -14,4 +17,4 @@ define ossec::activeresponse(
+     order   => 55,
+     content => template('ossec/activeresponse.erb')
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/manifests/addlog.pp b/manifests/addlog.pp
+index 1f3d998..a1e8ba0 100644
+--- a/manifests/addlog.pp
++++ b/manifests/addlog.pp
+@@ -1,4 +1,7 @@
+-#Define a log-file to add to ossec
++# Define: ossec::addlog
++#
++# Define a log-file to add to ossec
++#
+ define ossec::addlog(
+   $logfile,
+   $agent_log = false,
+diff --git a/manifests/agentkey.pp b/manifests/agentkey.pp
+index 367c18b..1481df1 100644
+--- a/manifests/agentkey.pp
++++ b/manifests/agentkey.pp
+@@ -1,4 +1,7 @@
++# Define: ossec::agentkey
++#
+ # utility function to fill up /var/ossec/etc/client.keys
++#
+ define ossec::agentkey(
+   $agent_id,
+   $agent_name,
+diff --git a/manifests/client.pp b/manifests/client.pp
+index b6cca08..0564f1d 100644
+--- a/manifests/client.pp
++++ b/manifests/client.pp
+@@ -1,3 +1,4 @@
++# Class: ossec::client
+ # Setup for ossec client
+ class ossec::client(
+   $ossec_active_response   = true,
+diff --git a/manifests/command.pp b/manifests/command.pp
+index 426ade8..50bb6db 100644
+--- a/manifests/command.pp
++++ b/manifests/command.pp
+@@ -1,3 +1,5 @@
++# Define: ossec::command
++#
+ # Define an ossec command
+ define ossec::command(
+   $command_name,
+diff --git a/manifests/email_alert.pp b/manifests/email_alert.pp
+index cccf8fd..d15a29f 100644
+--- a/manifests/email_alert.pp
++++ b/manifests/email_alert.pp
+@@ -1,3 +1,5 @@
++# Define: ossec::email_alert
++#
+ # Define an email alert
+ define ossec::email_alert(
+   $alert_email,
+diff --git a/manifests/init.pp b/manifests/init.pp
+index 33a8481..9e0e5aa 100644
+--- a/manifests/init.pp
++++ b/manifests/init.pp
+@@ -1,2 +1,8 @@
+-# Blank container class
+-class ossec { }
++# Class ossec
++#
++class ossec(
++  $product = 'ossec',
++  $version = '2.0.15',
++  ) {
++
++  }
+diff --git a/manifests/params.pp b/manifests/params.pp
+index 2ec64f5..661a307 100644
+--- a/manifests/params.pp
++++ b/manifests/params.pp
+@@ -1,4 +1,7 @@
++# Class: ossec::params
++#
+ # Paramas file
++#
+ class ossec::params {
+   case $::kernel {
+     'Linux': {
+@@ -21,9 +24,9 @@ class ossec::params {
+       case $::osfamily {
+         'Debian': {
+ 
+-          $agent_service  = 'ossec'
++          $agent_service  = 'wazuh-agent'
+ 
+-          $agent_package  = 'ossec-hids-agent'
++          $agent_package  = 'wazuh-agent'
+ 
+           $service_has_status  = false
+ 
+@@ -40,12 +43,12 @@ class ossec::params {
+ 
+           case $::lsbdistcodename {
+             /(precise|trusty|vivid|wily|xenial)/: {
+-              $server_service = 'ossec'
+-              $server_package = 'ossec-hids'
++              $server_service = 'wazuh-manager'
++              $server_package = 'wazuh-manager'
+             }
+             /^(jessie|wheezy|stretch|sid)$/: {
+-              $server_service = 'ossec'
+-              $server_package = 'ossec-hids'
++              $server_service = 'wazuh-manager'
++              $server_package = 'wazuh-manager'
+             }
+             default: { fail('This ossec module has not been tested on your distribution (or lsb package not installed)') }
+           }
+@@ -53,13 +56,13 @@ class ossec::params {
+         }
+         'Redhat': {
+ 
+-          $agent_service  = 'ossec-hids-agent'
++          $agent_service  = 'wazuh-agent'
+ 
+-          $agent_package  = 'ossec-hids-agent'
++          $agent_package  = 'wazuh-agent'
+ 
+-          $server_service = 'ossec-hids'
++          $server_service = 'wazuh-manager'
+ 
+-          $server_package = 'ossec-hids'
++          $server_package = 'wazuh-manager'
+ 
+           $service_has_status  = true
+ 
+diff --git a/manifests/repo.pp b/manifests/repo.pp
+index 1512162..9b40fb9 100644
+--- a/manifests/repo.pp
++++ b/manifests/repo.pp
+@@ -1,4 +1,7 @@
++# Class: ossec:repo
++#
+ # Repo installation
++#
+ class ossec::repo (
+   $redhat_manage_epel = true,
+ ) {
+@@ -49,7 +52,7 @@ class ossec::repo (
+     }
+     'Redhat' : {
+       if ( $::operatingsystem == 'Amazon' ) {
+-        yumrepo { 'ossec':
++        yumrepo { 'wasuh':
+           descr    => 'WAZUH OSSEC Repository - www.wazuh.com',
+           enabled  => true,
+           gpgcheck => 1,
+@@ -60,7 +63,7 @@ class ossec::repo (
+         }
+       } elsif $::operatingsystemrelease =~ /^5.*/ {
+         # Set up OSSEC repo
+-        yumrepo { 'ossec':
++        yumrepo { 'wazuh':
+           descr    => 'WAZUH OSSEC Repository - www.wazuh.com',
+           enabled  => true,
+           gpgcheck => 1,
+@@ -72,7 +75,7 @@ class ossec::repo (
+       }
+       else {
+         # Set up OSSEC repo
+-        yumrepo { 'ossec':
++        yumrepo { 'wazuh':
+           descr    => 'WAZUH OSSEC Repository - www.wazuh.com',
+           enabled  => true,
+           gpgkey   => 'http://ossec.wazuh.com/key/RPM-GPG-KEY-OSSEC',
+diff --git a/manifests/server.pp b/manifests/server.pp
+index 20ea51b..ebe4264 100644
+--- a/manifests/server.pp
++++ b/manifests/server.pp
+@@ -1,4 +1,7 @@
++# Class: ossec::seerver
++#
+ # Main ossec server config
++#
+ class ossec::server (
+   $mailserver_ip,
+   $ossec_emailto,
+diff --git a/metadata.json b/metadata.json
+index 58b74a6..bd5bde8 100644
+--- a/metadata.json
++++ b/metadata.json
+@@ -1,13 +1,13 @@
+ {
+-  "name": "wazuh-ossec",
+-  "version": "2.0.14",
+-  "author": "WAZUH",
++  "name": "uberops-ossec",
++  "version": "2.0.16",
++  "author": "uberops",
+   "summary": "Install and configure OSSEC-HIDS client and server",
+   "license": "Apache-2.0",
+-  "source": "https://github.com/wazuh/ossec-puppet",
+-  "project_page": "https://github.com/wazuh/ossec-puppet",
+-  "issues_url": "https://github.com/wazuh/ossec-puppet/issues",
+-  "tags": ["ossec", "hids", "2.8.3"],
++  "source": "git@gitlab.ubermonitoring.com:puppet/ossec-puppet.git",
++  "project_page": "https://gitlab.ubermonitoring.com/puppet/ossec-puppet",
++  "issues_url": "https://gitlab.ubermonitoring.com/puppet/ossec-puppet/issues",
++  "tags": ["ossec", "hids", "WAZUH", "2.8.3"],
+   "operatingsystem_support": [
+     {
+       "operatingsystem": "Windows",
+@@ -77,7 +77,7 @@
+       "name": "jfryman/selinux",
+       "version_requirement": ">= 0.2.3"
+     },
+-    { 
++    {
+       "name": "puppetlabs/mysql",
+       "version_requirement": ">= 2.0.0"
+     }
+diff --git a/spec/classes/_server_spec._rb b/spec/classes/_server_spec._rb
+deleted file mode 100644
+index a6ba639..0000000
+--- a/spec/classes/_server_spec._rb
++++ /dev/null
+@@ -1,28 +0,0 @@
+-# encoding: utf-8
+-# frozen_string_literal: true
+-require 'spec_helper'
+-describe 'ossec::server' do
+-  on_supported_os.each do |os, facts|
+-    context "on #{os}" do
+-      let (:facts) do
+-        facts.merge(concat_basedir: '/dummy')
+-      end
+-      context 'with defaults for all parameters' do
+-        it do
+-          expect { is_expected.to compile.with_all_deps }.to raise_error(/Must pass mailserver_ip/)
+-        end
+-      end
+-
+-      context 'with valid paramaters' do
+-        let (:params) do
+-          {
+-            mailserver_ip: "127.0.0.1",
+-            ossec_emailto: "root@localhost.com",
+-          }
+-        end
+-        it { is_expected.to compile.with_all_deps }
+-        it { is_expected.to contain_class('Ossec::Server') }
+-      end
+-    end
+-  end
+-end
+diff --git a/spec/classes/client_spec.rb b/spec/classes/client_spec.rb
+index 03af3a9..277a3a2 100644
+--- a/spec/classes/client_spec.rb
++++ b/spec/classes/client_spec.rb
+@@ -1,41 +1,56 @@
+ # encoding: utf-8
+ # frozen_string_literal: true
+-require 'spec_helper'
+-describe 'ossec::client' do
+-  on_supported_os.each do |os, facts|
+-    context "on #{os}" do
+-      let (:facts) do
+-        facts.merge(concat_basedir: '/dummy')
+-      end
+-      context 'with defaults for all parameters' do
+-        it do
+-          expect { is_expected.to compile.with_all_deps }.to raise_error(/must pass either/)
+-        end
+-      end
++require 'spec_helper_puppet'
++describe 'ossec::client', type: :class do
++  let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++  extend Testing::RspecPuppet::SharedExamples
++  context 'with defaults for all parameters' do
++    it do
++      expect { is_expected.to compile.with_all_deps }.to raise_error(/must pass either/)
++    end
++  end
+ 
+-      context 'with ossec_server_ip' do
+-        let (:params) do
+-          {
+-            ossec_server_ip: '127.0.0.1'
+-          }
+-        end
+-        it { is_expected.to compile.with_all_deps }
+-        it { is_expected.to contain_class('ossec::client') }
+-        it { is_expected.not_to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-hostname>local.test<\/server-hostname>/) }
+-        it { is_expected.to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-ip>127.0.0.1<\/server-ip>/) }
+-      end
++  context 'with ossec_server_ip' do
++    let (:params) do
++      {
++        ossec_server_ip: '127.0.0.1'
++      }
++    end
++    it { is_expected.to compile.with_all_deps }
++    it { is_expected.to contain_class('ossec::client') }
++    it { is_expected.to contain_file('/var/ossec/logs') }
++    it { is_expected.to contain_concat('/var/ossec/etc/ossec.conf') }
++    it { is_expected.to contain_concat('/var/ossec/etc/client.keys') }
++    it { is_expected.not_to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-hostname>local.test<\/server-hostname>/) }
++    it { is_expected.to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-ip>127.0.0.1<\/server-ip>/) }
++    it { is_expected.to contain_Concat__Fragment('ossec.conf_99').with_content(/<\/ossec_config>/) }
++    it { is_expected.to contain_Concat__Fragment('var_ossec_etc_client.keys_hostname_part') }
++    it { is_expected.to contain_Package('inotify-tools') }
++    it { is_expected.to contain_Package('wazuh-agent') }
++    it { is_expected.to contain_Service('wazuh-agent') }
++    it { is_expected.to contain_Yumrepo('wazuh') }
++    it { is_expected.to contain_ossec__agentkey('ossec_agent_hostname_client') }
++  end
+ 
+-      context 'with ossec_server_hostname' do
+-        let (:params) do
+-          {
+-            ossec_server_hostname: 'local.test'
+-          }
+-        end
+-        it { is_expected.to compile.with_all_deps }
+-        it { is_expected.to contain_class('ossec::client') }
+-        it { is_expected.not_to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-ip>127.0.0.1<\/server-ip>/) }
+-        it { is_expected.to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-hostname>local.test<\/server-hostname>/) }
+-      end
++  context 'with ossec_server_hostname' do
++    let (:params) do
++      {
++        ossec_server_hostname: 'local.test'
++      }
+     end
++    it { is_expected.to compile.with_all_deps }
++    it { is_expected.to contain_class('ossec::client') }
++    it { is_expected.to contain_file('/var/ossec/logs') }
++    it { is_expected.to contain_concat('/var/ossec/etc/ossec.conf') }
++    it { is_expected.to contain_concat('/var/ossec/etc/client.keys') }
++    it { is_expected.not_to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-ip>127.0.0.1<\/server-ip>/) }
++    it { is_expected.to contain_Concat__Fragment('ossec.conf_10').with_content(/<server-hostname>local.test<\/server-hostname>/) }
++    it { is_expected.to contain_Concat__Fragment('ossec.conf_99').with_content(/<\/ossec_config>/) }
++    it { is_expected.to contain_Concat__Fragment('var_ossec_etc_client.keys_hostname_part') }
++    it { is_expected.to contain_Package('inotify-tools') }
++    it { is_expected.to contain_Package('wazuh-agent') }
++    it { is_expected.to contain_Service('wazuh-agent') }
++    it { is_expected.to contain_Yumrepo('wazuh') }
++    it { is_expected.to contain_ossec__agentkey('ossec_agent_hostname_client') }
+   end
+ end
+diff --git a/spec/classes/init_spec.rb b/spec/classes/init_spec.rb
+index 38b9c9d..f87adef 100644
+--- a/spec/classes/init_spec.rb
++++ b/spec/classes/init_spec.rb
+@@ -1,14 +1,14 @@
+ # encoding: utf-8
+ # frozen_string_literal: true
+-require 'spec_helper'
+-describe 'ossec' do
+-  on_supported_os.each do |os, facts|
+-    context "on #{os}" do
+-      let (:facts) { facts }
+-      context 'with defaults for all parameters' do
+-        it { is_expected.to compile.with_all_deps }
+-        it { is_expected.to contain_class('ossec') }
+-      end
++require 'spec_helper_puppet'
++describe 'ossec', type: :class do
++  let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++  extend Testing::RspecPuppet::SharedExamples
++  context 'with defaults for all parameters' do
++    it { is_expected.to compile }
++    it do
++      is_expected.to contain_class('ossec').with(product: 'ossec',
++                                                 version: '2.0.15')
+     end
+   end
+ end
+diff --git a/spec/classes/params_spec.rb b/spec/classes/params_spec.rb
+new file mode 100644
+index 0000000..08c081f
+--- /dev/null
++++ b/spec/classes/params_spec.rb
+@@ -0,0 +1,9 @@
++# encoding: utf-8
++# frozen_string_literal: true
++require 'spec_helper_puppet'
++describe 'ossec::params', type: :class do
++  let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++  extend Testing::RspecPuppet::SharedExamples
++  it { is_expected.to compile }
++  it { is_expected.to contain_class 'ossec::params' }
++end
+diff --git a/spec/classes/repo_spec.rb b/spec/classes/repo_spec.rb
+new file mode 100644
+index 0000000..5a619ff
+--- /dev/null
++++ b/spec/classes/repo_spec.rb
+@@ -0,0 +1,9 @@
++# encoding: utf-8
++# frozen_string_literal: true
++require 'spec_helper_puppet'
++describe 'ossec::repo', type: :class do
++  let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++  extend Testing::RspecPuppet::SharedExamples
++  it { is_expected.to compile }
++  it { is_expected.to contain_class 'ossec::repo' }
++end
+diff --git a/spec/classes/server_spec.rb b/spec/classes/server_spec.rb
+index 7c4f7fc..7d15735 100644
+--- a/spec/classes/server_spec.rb
++++ b/spec/classes/server_spec.rb
+@@ -1,28 +1,23 @@
+ # encoding: utf-8
+ # frozen_string_literal: true
+-require 'spec_helper'
+-describe 'ossec::server' do
+-  on_supported_os.each do |os, facts|
+-    context "on #{os}" do
+-      let (:facts) do
+-        facts.merge(concat_basedir: '/dummy')
+-      end
+-      context 'with defaults for all parameters' do
+-        it do
+-          expect { is_expected.to compile.with_all_deps }.to raise_error(/expects a value for/)
+-        end
+-      end
++require 'spec_helper_puppet'
++describe 'ossec::server', type: :class do
++  let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++  extend Testing::RspecPuppet::SharedExamples
++  context 'with defaults for all parameters' do
++    it do
++      expect { is_expected.to compile.with_all_deps }.to raise_error(/expects a value for/)
++    end
++  end
+ 
+-      context 'with valid paramaters' do
+-        let (:params) do
+-          {
+-            mailserver_ip: "127.0.0.1",
+-            ossec_emailto: "root@localhost.com",
+-          }
+-        end
+-        # it { is_expected.to compile.with_all_deps }
+-        # it { should contain_class('Ossec::Server') }
+-      end
++  context 'with valid paramaters' do
++    let (:params) do
++      {
++        mailserver_ip: "127.0.0.1",
++        ossec_emailto: "root@localhost.com",
++      }
+     end
++    # it { is_expected.to compile.with_all_deps }
++    # it { should contain_class('Ossec::Server') }
+   end
+ end
+diff --git a/spec/defines/agentkey_spec.rb b/spec/defines/agentkey_spec.rb
+new file mode 100644
+index 0000000..0f9fd7c
+--- /dev/null
++++ b/spec/defines/agentkey_spec.rb
+@@ -0,0 +1,122 @@
++# encoding: utf-8
++# frozen_string_literal: true
++require 'spec_helper_puppet'
++
++describe 'ossec::agentkey', type: :define do
++  shared_examples 'containing class structure' do
++    it { is_expected.to compile.with_all_deps }
++  end
++
++  shared_examples 'containing self' do
++    it do
++      is_expected.to contain_ossec__agentkey(title).with(agent_id: '2',
++                                                         agent_name: 'test',
++                                                         agent_ip_address: '192.168.2.2')
++    end
++  end
++
++  shared_examples 'raise error' do
++    it { is_expected.to compile.with_all_deps }
++  end
++
++  context 'On RedHat os family' do
++    extend Testing::RspecPuppet::SharedExamples
++    let(:facts) { Testing::RspecPuppet::SharedFacts.oraclelinux_facts }
++    context 'valid agentkey' do
++      let(:title) { 'ossec_agent_hostname_client' }
++      let(:params) do
++        {
++          agent_id: '2',
++          agent_name: 'test',
++          agent_ip_address: '192.168.2.2'
++        }
++      end
++      it_behaves_like 'containing self'
++    end
++
++    context 'invalid agentkey' do
++      let(:title) { 'ossec_agent_hostname_client' }
++      let(:params) do
++        {
++          agent_id: '',
++          agent_name: '',
++          agent_ip_address: ''
++        }
++        it_behaves_like 'raise error'
++      end
++    end
++    context 'valid agentkey' do
++      let(:title) { 'ossec_agent_test_client' }
++      let(:params) do
++        {
++          agent_id: '2',
++          agent_name: 'test',
++          agent_ip_address: '192.168.2.2'
++        }
++      end
++      it_behaves_like 'containing self'
++    end
++    context 'invalid agentkey' do
++      let(:title) { 'ossec_agent_test_client' }
++      let(:params) do
++        {
++          agent_id: '',
++          agent_name: '',
++          agent_ip_address: ''
++        }
++        it_behaves_like 'raise error'
++      end
++    end
++  end
++
++  context 'On Debian os family' do
++    extend Testing::RspecPuppet::SharedExamples
++    let(:facts) { Testing::RspecPuppet::SharedFacts.ubuntu_facts }
++
++    context 'valid agentkey' do
++      let(:title) { 'ossec_agent_hostname_client' }
++      let(:params) do
++        {
++          agent_id: '2',
++          agent_name: 'test',
++          agent_ip_address: '192.168.2.2'
++        }
++      end
++      it_behaves_like 'containing self'
++    end
++
++    context 'invalid agentkey' do
++      let(:title) { 'ossec_agent_hostname_client' }
++      let(:params) do
++        {
++          agent_id: '',
++          agent_name: '',
++          agent_ip_address: ''
++        }
++        it_behaves_like 'raise error'
++      end
++    end
++    context 'valid agentkey' do
++      let(:title) { 'ossec_agent_test_client' }
++      let(:params) do
++        {
++          agent_id: '2',
++          agent_name: 'test',
++          agent_ip_address: '192.168.2.2'
++        }
++      end
++      it_behaves_like 'containing self'
++    end
++    context 'invalid agentkey' do
++      let(:title) { 'ossec_agent_test_client' }
++      let(:params) do
++        {
++          agent_id: '',
++          agent_name: '',
++          agent_ip_address: ''
++        }
++        it_behaves_like 'raise error'
++      end
++    end
++  end
++end
+diff --git a/spec/testing/rspec_puppet/shared_examples.rb b/spec/testing/rspec_puppet/shared_examples.rb
+new file mode 100644
+index 0000000..98f6a5d
+--- /dev/null
++++ b/spec/testing/rspec_puppet/shared_examples.rb
+@@ -0,0 +1,42 @@
++# encoding: utf-8
++# frozen_string_literal: true
++module Testing::RspecPuppet::SharedExamples
++  DEFAULT_VERSION = '2.0.15'.freeze
++  DEFAULT_PRODUCT = 'ossec'.freeze
++  DEFAULT_WITH    = [
++    :anchors,
++    :interfaces,
++    :packages
++  ].freeze
++  DEFAULT_OPTIONS = {
++    product: DEFAULT_PRODUCT,
++    version: DEFAULT_VERSION,
++    with: DEFAULT_WITH
++  }.freeze
++
++  def containing_basic_class_structure
++    name = 'containing basic class structure'
++    shared_examples(name) do
++      it { is_expected.to compile }
++      it { is_expected.to contain_class 'ossec' }
++      it { is_expected.to contain_class 'ossec::params' }
++      it { is_expected.to contain_class 'ossec::repo' }
++    end
++    name
++  end
++
++  def common_anchors
++    anchor_list = [
++      'begin', 'end', 'configuration::begin', 'configuration::end',
++      'installed', 'package::begin', 'package::end',
++      'service::begin', 'service::end', 'service::started'
++    ].map { |item| "ossec::#{item}" }
++    name = 'having common anchors'
++    shared_examples(name) do
++      anchor_list.each do |item|
++        it { is_expected.to contain_anchor(item.to_s) }
++      end
++    end
++    name
++  end
++end
+diff --git a/spec/testing/rspec_puppet/shared_facts.rb b/spec/testing/rspec_puppet/shared_facts.rb
+new file mode 100644
+index 0000000..9e54424
+--- /dev/null
++++ b/spec/testing/rspec_puppet/shared_facts.rb
+@@ -0,0 +1,46 @@
++# encoding: utf-8
++# frozen_string_literal: true
++class Testing::RspecPuppet::SharedFacts
++  DEFAULT_IP         = '192.168.0.1'.freeze
++  DEFAULT_CONCAT_DIR = '/root/concat'.freeze
++
++  DEFAULT_ORACLELINUX_FACTS = {
++    kernel: 'Linux',
++    hostname: 'hostname',
++    operatingsystem: 'OracleLinux',
++    osfamily: 'RedHat',
++    ipaddress: DEFAULT_IP,
++    concat_basedir: DEFAULT_CONCAT_DIR,
++    operatingsystemrelease: '6.7',
++    operatingsystemmajrelease: '6',
++    puppetversion: Puppet.version.to_s,
++    path: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
++  }.freeze
++  DEFAULT_UBUNTU_RELEASE = '14.04'.freeze
++  DEFAULT_UBUNTU_FACTS = {
++    kernel: 'Linux',
++    hostname: 'hostname',
++    operatingsystem: 'Ubuntu',
++    osfamily: 'Debian',
++    ipaddress: DEFAULT_IP,
++    concat_basedir: DEFAULT_CONCAT_DIR,
++    operatingsystemmajrelease: DEFAULT_UBUNTU_RELEASE,
++    operatingsystemrelease: DEFAULT_UBUNTU_RELEASE,
++    lsbdistcodename: 'trusty',
++    lsbdistdescription: 'Ubuntu 14.04.3 LTS',
++    lsbdistid: 'Ubuntu',
++    lsbdistrelease: DEFAULT_UBUNTU_RELEASE,
++    lsbmajdistrelease: DEFAULT_UBUNTU_RELEASE,
++    puppetversion: Puppet.version.to_s,
++    path: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
++  }.freeze
++  class << self
++    def ubuntu_facts(override = {})
++      DEFAULT_UBUNTU_FACTS.merge(override)
++    end
++
++    def oraclelinux_facts(override = {})
++      DEFAULT_ORACLELINUX_FACTS.merge(override)
++    end
++  end
++end
