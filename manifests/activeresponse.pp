@@ -1,4 +1,7 @@
-#Define for a specific ossec active-response
+# Define: ossec:active-response
+#
+# Define for a specific ossec active-response
+#
 define ossec::activeresponse(
   $command_name,
   $ar_location           = 'local',

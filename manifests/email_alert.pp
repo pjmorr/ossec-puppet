@@ -1,3 +1,5 @@
+# Define: ossec::email_alert
+#
 # Define an email alert
 define ossec::email_alert(
   $alert_email,
