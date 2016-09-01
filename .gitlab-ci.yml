@@ -120,7 +120,6 @@ master:
   - gem install bundler  --no-ri --no-rdoc
   - bundle install -j $(nproc) --path vendor
   - bundle exec rake build
-  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/master
   dependencies:
   - audit
   artifacts:
@@ -149,7 +148,6 @@ production:
   - gem install bundler  --no-ri --no-rdoc
   - bundle install -j $(nproc) --path vendor
   - bundle exec rake build
-  - aws s3 sync pkg/ s3://$S3_BUCKET/puppet/production
   dependencies:
   - audit
   artifacts:
