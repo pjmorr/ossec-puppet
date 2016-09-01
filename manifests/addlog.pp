@@ -1,4 +1,7 @@
-#Define a log-file to add to ossec
+# Define: ossec::addlog
+#
+# Define a log-file to add to ossec
+#
 define ossec::addlog(
   $logfile,
   $agent_log = false,

@@ -1,3 +1,5 @@
+# Define: ossec::command
+#
 # Define an ossec command
 define ossec::command(
   $command_name,

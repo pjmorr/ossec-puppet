@@ -1,3 +1,4 @@
+# Class: ossec::client
 # Setup for ossec client
 class ossec::client(
   $ossec_active_response   = true,
