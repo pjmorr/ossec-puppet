@@ -108,6 +108,11 @@ master:
     - master
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -132,6 +137,11 @@ production:
     - production
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -156,6 +166,11 @@ development:
     - development
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -180,6 +195,11 @@ test:
     - test
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -209,6 +229,11 @@ stable:
     - test
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
@@ -238,6 +263,11 @@ beta:
     - test
   stage: deploy
   before_script:
+  - cp .env-example .env
+  - source .env
+  - export DEBIAN_FRONTEND=noninteractive
+  - export NOKOGIRI_USE_SYSTEM_LIBRARIES=true
+  - ruby -v
   - apt-get update
   - apt-get -qq install python python-pip ca-certificates
   - pip install awscli
