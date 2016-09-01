@@ -26,8 +26,8 @@ describe 'ossec::client', type: :class do
     it { is_expected.to contain_Concat__Fragment('ossec.conf_99').with_content(/<\/ossec_config>/) }
     it { is_expected.to contain_Concat__Fragment('var_ossec_etc_client.keys_hostname_part') }
     it { is_expected.to contain_Package('inotify-tools') }
-    it { is_expected.to contain_Package('wazuh-agent') }
-    it { is_expected.to contain_Service('wazuh-agent') }
+    it { is_expected.to contain_Package('ossec-hids-agent') }
+    it { is_expected.to contain_Service('ossec-hids-agent') }
     it { is_expected.to contain_Yumrepo('wazuh') }
     it { is_expected.to contain_ossec__agentkey('ossec_agent_hostname_client') }
   end
@@ -48,8 +48,8 @@ describe 'ossec::client', type: :class do
     it { is_expected.to contain_Concat__Fragment('ossec.conf_99').with_content(/<\/ossec_config>/) }
     it { is_expected.to contain_Concat__Fragment('var_ossec_etc_client.keys_hostname_part') }
     it { is_expected.to contain_Package('inotify-tools') }
-    it { is_expected.to contain_Package('wazuh-agent') }
-    it { is_expected.to contain_Service('wazuh-agent') }
+    it { is_expected.to contain_Package('ossec-hids-agent') }
+    it { is_expected.to contain_Service('ossec-hids-agent') }
     it { is_expected.to contain_Yumrepo('wazuh') }
     it { is_expected.to contain_ossec__agentkey('ossec_agent_hostname_client') }
   end
