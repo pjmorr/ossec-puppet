@@ -1,4 +1,7 @@
+# Class: ossec::seerver
+#
 # Main ossec server config
+#
 class ossec::server (
   $mailserver_ip,
   $ossec_emailto,

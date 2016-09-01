@@ -1,4 +1,4 @@
-# OSSEC Puppet module
+# Wazuh flavored OSSEC Puppet module
 
 [![build status](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/badges/master/build.svg)](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/commits/master)<br>
 [![coverage report](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/badges/master/coverage.svg)](https://gitlab.ubermonitoring.com/puppet/ossec-puppet/commits/master)
@@ -15,7 +15,7 @@ This module installs and configure OSSEC HIDS agent and manager.
 
 This Puppet module has been authored by Nicolas Zin, and updated by Jonathan Gazeley and Michael Porter. Wazuh has forked it with the purpose of maintaining it. Thank you to the authors for the contribution.
 
-Additional modifications for UberMonitoring have been made in order to integrate with existing CI & security processes.
+_Additional modifications for UberMonitoring have been made in order to integrate with existing CI & security processes._
 
 ## References
 

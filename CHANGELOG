@@ -215,3 +215,15 @@ Jose Luis Ruiz <jose@wazuh.com>:
 
   * Add option to enable syslog output. (pull request #35 thanks @TravellingGUy )
   * Add Add Amazon Linux support. (pull request #37 thanks @seefood)
+
+  2016-08-31 Philip Morrison  - 2.0.16
+  ===========================================================
+
+  * Add additional spec tests (93% code coverage)
+    * Add .gitlab-ci.yml for GitLab-CI processing
+    * Add rubocop checks
+    * Add bundle:audit (CVE checking our code is good)
+    * Add .ruby-version for rvn users to pin 2.2.5 required by Gemfile
+    * Add logo to repo for automatic branding love.
+    * Updated .fixtures.yml
+  * Minor tweaks to manifest files (header info to make linter happy)

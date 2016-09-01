@@ -1,4 +1,7 @@
+# Define: ossec::agentkey
+#
 # utility function to fill up /var/ossec/etc/client.keys
+#
 define ossec::agentkey(
   $agent_id,
   $agent_name,
